@@ -1,0 +1,94 @@
+\documentclass[a4paper,11pt]{article}
+
+\usepackage[left=2cm, top=3cm, text={17cm, 24cm}]{geometry}
+\usepackage[czech]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage{times}
+\usepackage[unicode]{hyperref}
+\usepackage[nottoc]{tocbibind}
+\hypersetup{colorlinks = false, hypertexnames = false}
+
+\begin{document}
+	\begin{titlepage}
+		\begin{center}
+			\textsc{\Huge Vysoké učení technické v~Brně\\
+				\vspace{0.4em}\huge Fakulta informačních technologií}
+			
+			\vspace{\stretch{0.382}}
+			
+			{\LARGE Síťové aplikace a správa sítí\\
+				\Huge Rozšíření SNMP agenta\\ \vspace{0.3em}}
+			
+			\vspace{\stretch{0.618}}
+			
+			{\Large \today \hfill Martin Kostelník}
+		\end{center}
+	\end{titlepage}
+
+	\tableofcontents
+	
+	\newpage
+
+	\section{Úvod}
+		Simple Network Management Protocol (dále SNMP) je síťový protokol pro správu a monitorování zářízení připojených do sítě. Úkolem bylo vytvořit a implementovat dynamicky načítatelný modul, který bude sloužit jako rozšíření běžícího SNMP agenta. SNMP agent je aplikace běžící na monitorovaném zařízení, která sbírá informace o jednotlivých prvcích systému. Implementovaný modul by měl takového agenta rozšířit o čtyři objekty obsahující informace různých druhů.
+			
+	\section{Popis implementace}
+		Aplikace je implementována jako dynamicky načítatelný modul. Jako první byl vytvořen textový soubor obsahující definici Management information base (dále MIB). Tento soubor obsahuje celkem pět objektů. První je samotný modul, který se do SNMP stromu řadí pod větev experimental a má vlastní číslo 22. Následují čtyři skalární objekty obsahující užitečná data. Jednotlivé objekty i následný přístup k datům je detailně popsán v kapitole \ref{section:objs}.
+		
+		Pro vygenerování koster zdrojových souborů byl použit nástroj \texttt{mib2c} \cite{mib2c}. Tento nástroj z textového souboru obsahující definici MIB vytvořil dva soubory. Hlavičkový soubor \texttt{ISAMIBModule.h} a zdrojový soubor \texttt{ISAMIBModule.c}. Hlavičkový soubor nebylo nutno již nijak upravovat. Zdrojový soubor však upraven být musel. Byly vytvořeny globální statické proměnné, ve kterých jsou uloženy data našich objektů. Pro read-write objekt bylo nutno vytvořit ještě proměnnou na zálohování hodnoty, pokud by při přepisování došlo k chybě.
+		
+		Při načtení modulu do běžícího agenta se musí modul nejprve inicializovat. Inicializaci zprostředkovává funkce \texttt{init\_ISAMIBmodule()}. Tato funkce byla vygenerována kompletní a nemusela být upravena.
+		
+		Dále existují funkce na manipulaci s jednotlivými objekty. U každé funkce byly upraveny části, která zprostředkovává čtení dat z objektu. Dále bylo implementováno získávání aktuálního času ve funkci manipulující s objektem, který čas specifikuje. UTC čas je získán pomocí knihovní funkce \texttt{gmtime()} a následně zformátován pomocí funkce \texttt{sprintf()} dle standardu RFC 3339 \cite{rfc}. Časový formát vypadá následovně: \texttt{YYYY-MM-DDTHH:MM:SSZ}. U funkce pro objekt s číslem bylo implementováno navíc nastavení proměnné na hodnotu zadanou uživatelem včetně zálohování pro případ chyby při zápisu. 
+			
+		Pro řízení překladu je použit program make. Makefile obsahuje kromě cíle pro překlad také cíl \texttt{clean}, který odstraní soubory vzniklé při překladu a cíl \texttt{pack}, který projekt zabalí do formátu \texttt{tar}, ve kterém je projekt odevzdán.
+			
+	\section{Spuštění aplikace}
+		Nejprve je nutné aplikaci přeložit příkazem \texttt{make} v adresáři s projektem. Tím nám vznikne binární soubor \texttt{ISAMIBModule.so}. Dále zkopírujeme soubor s MIB definicí do adresáře \texttt{/usr/share/snmp/mibs}. Ke spuštění aplikace budeme potřebovat dvě okna s terminálem. V jednom okně terminálu spustíme SNMP agenta příkazem:\\\\
+		\texttt{snmpd -f -L}\\
+		
+		Pokud spuštění agenta proběhlo v pořádku, měli bychom být uvítáni zprávou o použité verzi agenta. Nyní se přepneme do druhého okna terminálu, kde načteme náš modul do již běžícího agenta. Toho dosáhneme následující sekvencí třech příkazů:\\\\
+		\texttt{snmpset localhost UCD-DLMOD-MIB::dlmodStatus.1 i create}\\\\
+		\texttt{snmpset localhost UCD-DLMOD-MIB::dlmodName.1 s "ISAMIBModule"$ $ UCD-DLMOD-\\MIB::dlmodPath.1 s "path"}, kde \texttt{path} je absolutní cesta k binárnímu souboru s modulem\\\\
+		\texttt{snmpset localhost UCD-DLMOD-MIB::dlmodStatus.1 i load}\\
+		
+		První příkaz vytvoří nový záznam v dlmod tabulce. Druhý nastaví název modulu a cestu k němu do vytvořeného řádku tabulky. Třetí příkaz už konečně načte náš modul do běžícího agenta. Jak jeho funkcionalitu vyzkoušet je popsáno v následující kapitole.
+		
+	\section{Objekty modulu}
+	\label{section:objs}
+		V modulu jsou implementovány čtyři různé objekty.
+		
+		\subsection{loginObject}
+			Tento objekt je se registruje pod OID .1.3.6.1.3.22.1. Je implementován jako read-only textový řetězec, konkrétně datovým typem DisplayString. Objekt obsahuje autorův login do informačního systému FIT VUT. Hodnotu můžeme zjistit příkazem \texttt{snmpget} takto:\\\\
+			\texttt{snmpget localhost ISA-MIB::loginObject.0}\\\\
+			Na výstupu terminálu bychom měli vidět řádek:\\\\
+			\texttt{ISA-MIB::loginObject.0 = STRING: xkoste12}
+			
+		\subsection{timeObject}
+			Objekt je registrován pod OID .1.3.6.1.3.22.2. Jako předchozí objekt je i tento implementován jako read-only textový řetězec, typ DisplayString. Jeho obsahem je aktuální UTC čas formátovaný dle standardu RFC 3339 \cite{rfc}.\\\\
+			\texttt{snmpget localhost ISA-MIB::timeObject.0}\\\\
+			Na výstupu terminálu uvidíme řádek s aktuálním UTC časem. V čase testování:\\\\
+			\texttt{ISA-MIB::timeObject.0 = STRING: 2020-11-18T17:45:59Z}
+			
+		\subsection{intObject}
+			U toho objektu je kromě čtení povolen i zápis. Registruje se pod OID .1.3.6.1.3.22.3. Na	rozdíl od předešlých objektů je implementován jako celočíselný typ (Integer32). V následujících příkladech je ukázáno, jak hodnotu z objektu číst, ale i jak hodnotu zapsat.\\\\
+			\texttt{snmpget localhost ISA-MIB::intObject.0}\\\\
+			Na výstupu terminálu můžeme vidět výchozí hodnotu objektu, která je $0$:\\\\
+			\texttt{ISA-MIB::intObject.0 = INTEGER: 0}\\\\
+			Změníme hodnotu z $0$ na $42$ příkazem \texttt{snmpset} následovně:\\\\
+			\texttt{snmpset ISA-MIB::intObject.0 i 42}\\\\
+			Když nyní znovu získáme hodnotu objektu pomocí příkazu \texttt{snmpget} stejným způsobem jako dříve, uvidíme novou hodnotu:\\\\
+			\texttt{ISA-MIB::intObject.0 = INTEGER: 42}
+			
+		\subsection{ramObject}
+			Objekt v sobě uchovává množství operační paměti systému v MB. OID tohoto objektu je .1.3.6.1.3.22.4. Pro získání informace o množství paměti je použita funkce \texttt{sysinfo()} z hlavičkového souboru \texttt{sysinfo.h}. Z tohoto důvodu je program plně funkční pouze na operačním systému Linux. Při použití na jiných operačních systémech bude hodnota objektu vždy nula.\\\\
+			\texttt{snmpget localhost ISA-MIB::ramObject.0}\\\\
+			Na výstupu terminálu se zobrazí množství operační paměti systému v MB. Pro  virtuální stroj použitý při realizaci projektu je výstup:\\\\
+			\texttt{ISA-MIB::ramObject.0 = INTEGER: 1837}
+
+	\newpage
+	\bibliographystyle{czechiso}
+	\renewcommand{\refname}{Literatura}
+	\bibliography{manual-bib}
+		
+\end{document}

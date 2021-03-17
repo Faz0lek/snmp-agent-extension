@@ -1,0 +1,54 @@
+-- AUTHOR:	Martin Kostelnik (xkoste12)
+-- DATE:	18.11.2020
+
+ISA-MIB DEFINITIONS ::= BEGIN
+
+IMPORTS
+	OBJECT-TYPE, Integer32,
+	MODULE-IDENTITY, experimental	FROM SNMPv2-SMI
+	DisplayString			FROM SNMPv2-TC;
+
+ISAMIBModule MODULE-IDENTITY
+    LAST-UPDATED "202011010000Z"
+    ORGANIZATION "fit-vut"
+    CONTACT-INFO "email: xkoste12@stud.fit.vutbr.cz"
+    DESCRIPTION  "ISA project 2020 MIB"
+    ::= { experimental 22 }
+
+loginObject OBJECT-TYPE
+    SYNTAX      DisplayString
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+	"Read only string containing my login"
+    DEFVAL { "xkoste12" }
+    ::= { ISAMIBModule 1 }
+
+timeObject OBJECT-TYPE
+    SYNTAX      DisplayString
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+	"Read only string containing current time according to RFC 3339"
+    DEFVAL { "1111-11-11T11:11:11Z" }
+    ::= { ISAMIBModule 2 }
+
+intObject OBJECT-TYPE
+    SYNTAX      Integer32
+    MAX-ACCESS  read-write
+    STATUS      current
+    DESCRIPTION
+	"Read write integer32 containing a number"
+    DEFVAL { 0 }
+    ::= { ISAMIBModule 3 }
+
+ramObject OBJECT-TYPE
+    SYNTAX	Integer32
+    MAX-ACCESS	read-only
+    STATUS	current
+    DESCRIPTION
+	"Read only integer32 containing the amount of available RAM in MB"
+    DEFVAL { 1024 }
+    ::= { ISAMIBModule 4 }
+
+END
